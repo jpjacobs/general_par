@@ -1,20 +1,24 @@
 NB. Class for coroutines
 NB. uses Henry's suggested semaphore mechanism, wrapped in an OOP object to limit loose pieces hanging around.
+NB. Status:
+NB.  Works mostly. Sometimes gets stuck, sometimes, printing order is not correct. Likely glitchy for some reason.
 
 coclass 'coro'
 NB. creator function, does not do much but verify at least 1 thread is running.
-create =: {{
-	0&T.@''^:(-1&T.@'') 1 NB. ensure 1 thread
-	NB. starting of coro needs to be handled by adverb (new), as it requires the verb to be taken as arg.
-}}
+NB.create =: {{
+  NB. starting of coro needs to be handled by adverb (new), as it requires the verb to be taken as arg.
+NB. }}
 NB. entrypoint: adverb taking coroutine verb and returns a verb that takes a timeout as x and as y any initial arguments. This derived verb in turn returns a reference to the coro object to refer to when using yield__x and resume__ref.
 new =: {{
+  30&$: NB. default timeout: 30 s
+:
   co =. conew 'coro'
+  0&T.@''^:(0>.]-1&T.@'') 1[y NB. ensure 1 thread
   WAIT__co =: x
   pyxback__co =: 5 T. x
   pyxfin__co=: co u t. ''y
   co
-}} (30&$: :) NB. default timeout: 30 s
+}}
 NB. naming convention:
 NB. - forw suffix is for passing stuff from main to coro
 NB. - back suffix is for passing stuff from coro to main
@@ -29,12 +33,11 @@ NB. status returns 1 when coro is active, and 0 when it has ended, based on whet
 NB. takes as optional y a tiny delay needed for allowing coroutine to return if done, default 0.001
 status  =: {{0 < 4 T. pyxfin [ 6!:3]{.y,0.001 }}
 destroy =: {{
-  echo 'destroy called:',":coname''
-	NB. if anything is hanging/waiting, send them an error.
-	for_p. pyxforw,pyxback,pyxfin do.
-		if. 0 < 4 T. p do. 7 T. p,<18 end.
-	end.
-	codestroy '' NB. remove locale
+  NB. if anything is hanging/waiting, send them an error.
+  for_p. pyxforw,pyxback,pyxfin do.
+    if. 0 < 4 T. p do. 7 T. p,<18 end.
+  end.
+  codestroy '' NB. remove locale
 }}
 NB. shortcut for getting return value from the final pyx and disposing of object.
 end =: {{r [ destroy '' [ r=.>pyxfin}}
@@ -56,6 +59,7 @@ NB. first test, simple
 main =: {{
   echo 'main starting!'
 	c =: 10 test new_coro_ 'init args for C'
+  6!:3 ]0.001
 	echo 'M: got from coro: ', resume__c 'what the ...'
 	echo 'M: got from coro(2): ', resume__c 'last warning'
 	echo pyxfin__c
